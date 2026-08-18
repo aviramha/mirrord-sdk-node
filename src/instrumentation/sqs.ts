@@ -2,8 +2,6 @@ import { createRequire } from 'node:module';
 
 import { parse } from '../baggage.js';
 import type { Baggage } from '../baggage.js';
-import type { Config } from '../config.js';
-import { log, resolveConfig } from '../config.js';
 import { state } from '../context.js';
 import { HEADER, outboundHeader } from '../outbound.js';
 
@@ -103,7 +101,7 @@ function injectIntoInput(input: SendMessageInput, header: string): void {
  * SigV4 signing — mutating the request body any later would invalidate the
  * signature.
  */
-export function createSqsMiddleware(config: Config) {
+export function createSqsMiddleware() {
   return function baggageMiddleware(
     next: (args: unknown) => unknown,
     context: { commandName?: string },
@@ -112,8 +110,7 @@ export function createSqsMiddleware(config: Config) {
       const commandName = context && context.commandName;
       try {
         if (commandName && SEND_COMMANDS.indexOf(commandName) !== -1) {
-          // SQS is an AWS-internal endpoint; host filtering does not apply.
-          const header = outboundHeader(config);
+          const header = outboundHeader();
           if (header !== null && args.input) {
             if (commandName === 'SendMessageCommand') {
               injectIntoInput(args.input, header);
@@ -139,8 +136,8 @@ export function createSqsMiddleware(config: Config) {
             names.push(SQS_ATTRIBUTE);
           }
         }
-      } catch (error) {
-        log(config, 'sqs middleware skipped: ' + String(error));
+      } catch {
+        // Never let instrumentation break the command it is decorating.
       }
       return next(args);
     };
@@ -162,10 +159,7 @@ interface MiddlewareStackClient {
  * Use this when the automatic hook cannot reach the SDK — a pure-ESM app, a
  * bundled Lambda, or a vendored copy of `@aws-sdk/client-sqs`.
  */
-export function instrumentSQSClient(
-  client: MiddlewareStackClient,
-  config: Config = resolveConfig(),
-): boolean {
+export function instrumentSQSClient(client: MiddlewareStackClient): boolean {
   const stack = client && client.middlewareStack;
   if (!stack || typeof stack.add !== 'function') return false;
   // `add` with the same name twice throws in the SDK; removing first makes the
@@ -175,7 +169,7 @@ export function instrumentSQSClient(
   } catch {
     // Not present yet.
   }
-  stack.add(createSqsMiddleware(config), {
+  stack.add(createSqsMiddleware(), {
     step: 'initialize',
     name: MIDDLEWARE_NAME,
     tags: ['BAGGAGE', 'CONTEXT_PROPAGATION'],
@@ -204,15 +198,13 @@ function resolveFromApp(id: string): unknown {
  * Hooks `SQSClient.prototype.send` so clients constructed anywhere in the app —
  * before or after install — pick up the middleware on first use.
  */
-export function installSqs(config: Config): Array<() => void> {
+export function installSqs(): Array<() => void> {
   const mod = resolveFromApp('@aws-sdk/client-sqs') as {
     SQSClient?: { prototype: Record<string, unknown> };
   } | null;
   const proto = mod && mod.SQSClient && mod.SQSClient.prototype;
-  if (!proto || typeof proto.send !== 'function') {
-    log(config, '@aws-sdk/client-sqs not found; SQS propagation inactive');
-    return [];
-  }
+  // Absent from the application's dependencies: nothing to instrument.
+  if (!proto || typeof proto.send !== 'function') return [];
 
   const original = proto.send as (...args: unknown[]) => unknown;
   const seen = new WeakSet<object>();
@@ -221,16 +213,13 @@ export function installSqs(config: Config): Array<() => void> {
     try {
       if (!seen.has(this)) {
         seen.add(this);
-        instrumentSQSClient(this, config);
+        instrumentSQSClient(this);
       }
-    } catch (error) {
+    } catch {
       // An SDK version whose middleware stack differs must not break send().
-      log(config, 'could not instrument client: ' + String(error));
     }
     return original.apply(this, args);
   };
-  log(config, 'instrumented @aws-sdk/client-sqs');
-
   return [
     () => {
       proto.send = original;
