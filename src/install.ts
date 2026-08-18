@@ -3,6 +3,7 @@ import { state } from './context.js';
 import { installFetch } from './instrumentation/fetch.js';
 import { installHttpClient } from './instrumentation/http-client.js';
 import { installHttpServer } from './instrumentation/http-server.js';
+import { installSqs } from './instrumentation/sqs.js';
 
 export interface PropagateHandle {
   /** True once instrumentation is in place. */
@@ -61,6 +62,7 @@ export function auto_propagate(options: PropagateOptions = {}): PropagateHandle 
   step('http-server', installHttpServer);
   step('http-client', installHttpClient);
   step('fetch', installFetch);
+  step('sqs', installSqs);
 
   state.installed = true;
   state.instrumented = instrumented;
