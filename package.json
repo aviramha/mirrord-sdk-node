@@ -1,0 +1,73 @@
+{
+  "name": "mirrord-sdk",
+  "version": "0.1.0",
+  "description": "Automatic W3C Baggage propagation for Node, Bun and Deno.",
+  "license": "MIT",
+  "author": "MetalBear Tech LTD",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aviramha/mirrord-sdk-node.git"
+  },
+  "homepage": "https://github.com/aviramha/mirrord-sdk-node#readme",
+  "bugs": {
+    "url": "https://github.com/aviramha/mirrord-sdk-node/issues"
+  },
+  "keywords": [
+    "baggage",
+    "w3c-baggage",
+    "context-propagation",
+    "distributed-tracing",
+    "mirrord",
+    "asynclocalstorage"
+  ],
+  "type": "commonjs",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      },
+      "default": "./dist/cjs/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=14.18.0"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json && node scripts/set-dist-module-type.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run build && npm run test:unit",
+    "test:unit": "node scripts/run-tests.mjs test/unit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^20.14.0",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^9.1.2",
+    "globals": "^15.15.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.47.2"
+  }
+}
