@@ -1,5 +1,3 @@
-import type { Config } from '../config.js';
-import { resolveConfig } from '../config.js';
 import { HEADER, findHeader, outboundHeader } from '../outbound.js';
 
 interface AxiosRequestConfigLike {
@@ -17,30 +15,19 @@ interface AxiosLike {
   };
 }
 
-function hostOf(config: AxiosRequestConfigLike): string | undefined {
-  try {
-    const base = config.baseURL;
-    const url = config.url || '';
-    return new URL(url, base || 'http://localhost').hostname;
-  } catch {
-    return undefined;
-  }
-}
-
 /**
  * Registers a request interceptor on an axios instance.
  *
  * In Node, axios goes through `node:http`, so the automatic hook already covers
- * it. Reach for this when axios is configured with the `fetch` or `xhr`
- * adapter, when running in a browser bundle, or when you want the header
- * visible to your own downstream interceptors.
+ * it. Reach for this when axios is configured with a non-http adapter, or when
+ * you want the header visible to your own downstream interceptors.
  *
  * Returns the interceptor id so it can be ejected.
  */
-export function instrumentAxios(instance: AxiosLike, config: Config = resolveConfig()): number {
+export function instrumentAxios(instance: AxiosLike): number {
   return instance.interceptors.request.use((requestConfig) => {
     try {
-      return addHeader(requestConfig, config);
+      return addHeader(requestConfig);
     } catch {
       // An interceptor that throws would reject the request outright.
       return requestConfig;
@@ -48,9 +35,9 @@ export function instrumentAxios(instance: AxiosLike, config: Config = resolveCon
   });
 }
 
-function addHeader(requestConfig: AxiosRequestConfigLike, config: Config): AxiosRequestConfigLike {
+function addHeader(requestConfig: AxiosRequestConfigLike): AxiosRequestConfigLike {
   {
-    const header = outboundHeader(config, hostOf(requestConfig));
+    const header = outboundHeader();
     if (header === null) return requestConfig;
 
     // Axios 1.x hands over an AxiosHeaders instance, which supports `set` and

@@ -4,9 +4,7 @@ import test, { after, before } from 'node:test';
 
 const require = createRequire(import.meta.url);
 const bag = await import('../../dist/cjs/index.js');
-// The inbound server hook is off, so the explicit middleware is the only thing
-// establishing a context.
-bag.auto_propagate({ http: false });
+bag.auto_propagate();
 const esm = await import('../../dist/esm/index.js');
 const cjs = require('../../dist/cjs/index.js');
 const express = require('express');
@@ -41,7 +39,20 @@ after(() => {
   downstream?.close();
 });
 
-test('the explicit middleware works with the server hook disabled', async () => {
+test('the middleware establishes a context on its own', async () => {
+  // Invoked directly, with no server hook in the picture, so this is the
+  // middleware doing the work rather than the patched `request` event.
+  let observed;
+  await new Promise((resolve) => {
+    bag.baggageMiddleware({ headers: { baggage: 'user=alice' } }, {}, () => {
+      observed = bag.getAll();
+      resolve();
+    });
+  });
+  assert.deepEqual(observed, { user: 'alice' });
+});
+
+test('express plus axios propagates end to end', async () => {
   const res = await fetch(`http://127.0.0.1:${app.address().port}/hop`, {
     headers: { baggage: 'user=alice' },
   });
