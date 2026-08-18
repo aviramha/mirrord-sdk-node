@@ -36,6 +36,17 @@
       },
       "default": "./dist/cjs/index.js"
     },
+    "./sqs": {
+      "import": {
+        "types": "./dist/esm/instrumentation/sqs.d.ts",
+        "default": "./dist/esm/instrumentation/sqs.js"
+      },
+      "require": {
+        "types": "./dist/cjs/instrumentation/sqs.d.ts",
+        "default": "./dist/cjs/instrumentation/sqs.js"
+      },
+      "default": "./dist/cjs/instrumentation/sqs.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -65,6 +76,7 @@
   },
   "dependencies": {},
   "devDependencies": {
+    "@aws-sdk/client-sqs": "3.1092.0",
     "@eslint/js": "^9.39.5",
     "@nestjs/common": "10.4.15",
     "@nestjs/core": "10.4.15",
@@ -82,11 +94,22 @@
     "typescript-eslint": "^8.47.2"
   },
   "peerDependencies": {
+    "@aws-sdk/client-sqs": ">=3.0.0",
     "axios": ">=0.27.0"
   },
   "peerDependenciesMeta": {
     "axios": {
       "optional": true
+    },
+    "@aws-sdk/client-sqs": {
+      "optional": true
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "sqs": [
+        "./dist/cjs/instrumentation/sqs.d.ts"
+      ]
     }
   }
 }
