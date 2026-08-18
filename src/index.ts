@@ -45,6 +45,9 @@ export {
 } from './instrumentation/sqs.js';
 export type { MessageHandler, SqsMessageLike } from './instrumentation/sqs.js';
 
+export { instrumentAxios } from './integrations/axios.js';
+export { baggageMiddleware } from './integrations/express.js';
+
 /**
  * camelCase alias for {@link auto_propagate}, for codebases that would rather
  * not have a snake_case call in the middle of an entry point.
