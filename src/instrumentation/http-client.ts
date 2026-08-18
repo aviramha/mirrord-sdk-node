@@ -1,8 +1,6 @@
 import http from 'node:http';
 import https from 'node:https';
 
-import type { Config } from '../config.js';
-import { log } from '../config.js';
 import { HEADER, findHeader, outboundHeader } from '../outbound.js';
 
 type RequestFn = (...args: unknown[]) => unknown;
@@ -10,11 +8,6 @@ type HttpModule = Record<string, unknown>;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function hostOf(options: Record<string, unknown>, fallback?: string): string | undefined {
-  const host = options.hostname || options.host || fallback;
-  return typeof host === 'string' ? host : undefined;
 }
 
 /**
@@ -25,16 +18,10 @@ function hostOf(options: Record<string, unknown>, fallback?: string): string | u
  * because callers routinely reuse a single options object across requests and
  * would otherwise accumulate a stale header from whichever context ran first.
  */
-function injectIntoArgs(args: unknown[], config: Config, defaultProtocol: string): unknown[] {
-  let urlHost: string | undefined;
+function injectIntoArgs(args: unknown[]): unknown[] {
   let index = -1;
 
   if (typeof args[0] === 'string' || args[0] instanceof URL) {
-    try {
-      urlHost = new URL(String(args[0]), defaultProtocol + '//localhost').hostname;
-    } catch {
-      urlHost = undefined;
-    }
     if (isPlainObject(args[1])) index = 1;
   } else if (isPlainObject(args[0])) {
     index = 0;
@@ -48,7 +35,7 @@ function injectIntoArgs(args: unknown[], config: Config, defaultProtocol: string
   const options: Record<string, unknown> = source
     ? Object.assign(Object.create(Object.getPrototypeOf(source) as object | null), source)
     : {};
-  const header = outboundHeader(config, hostOf(options, urlHost));
+  const header = outboundHeader();
   if (header === null) return args;
 
   const headers: Record<string, unknown> = isPlainObject(options.headers)
@@ -74,7 +61,7 @@ function injectIntoArgs(args: unknown[], config: Config, defaultProtocol: string
  * one, so both have to be wrapped. The already-set check in `injectIntoArgs`
  * makes the resulting double pass a no-op.
  */
-function patchModule(mod: HttpModule, protocol: string, config: Config): Array<() => void> {
+function patchModule(mod: HttpModule): Array<() => void> {
   const undo: Array<() => void> = [];
   for (const name of ['request', 'get']) {
     const original = mod[name];
@@ -83,7 +70,7 @@ function patchModule(mod: HttpModule, protocol: string, config: Config): Array<(
     const wrapped = function patched(this: unknown, ...args: unknown[]) {
       let nextArgs = args;
       try {
-        nextArgs = injectIntoArgs(args, config, protocol);
+        nextArgs = injectIntoArgs(args);
       } catch {
         // Fall back to exactly what the caller passed.
         nextArgs = args;
@@ -96,10 +83,9 @@ function patchModule(mod: HttpModule, protocol: string, config: Config): Array<(
       mod[name] = original;
     });
   }
-  log(config, 'instrumented outbound ' + protocol.replace(':', '') + ' client');
   return undo;
 }
 
-export function installHttpClient(config: Config): Array<() => void> {
-  return [...patchModule(http, 'http:', config), ...patchModule(https, 'https:', config)];
+export function installHttpClient(): Array<() => void> {
+  return [...patchModule(http), ...patchModule(https)];
 }

@@ -4,12 +4,10 @@ import type { IncomingMessage } from 'node:http';
 
 import type { Baggage } from '../baggage.js';
 import { parse } from '../baggage.js';
-import type { Config } from '../config.js';
-import { log } from '../config.js';
 import { state } from '../context.js';
 import { HEADER } from '../outbound.js';
 
-const PATCHED = Symbol.for('metalbear.mirrord-baggage.server.v1');
+const PATCHED = Symbol.for('mirrord-sdk.server.v1');
 
 type Emitter = { emit(event: string, ...args: unknown[]): boolean };
 type PatchableProto = Emitter & { [PATCHED]?: true };
@@ -21,17 +19,11 @@ type PatchableProto = Emitter & { [PATCHED]?: true };
  *
  * `https.Server` does not inherit from `http.Server`, so both prototypes are
  * patched. A context is established even when the header is absent, so that
- * application code can call `set()` and have it propagate onward.
+ * application code can call `set()` and have it propagate.
  */
-function patchServerProto(
-  proto: PatchableProto,
-  label: string,
-  config: Config,
-): (() => void) | null {
-  if (proto[PATCHED]) {
-    log(config, label + ' server already instrumented');
-    return null;
-  }
+function patchServerProto(proto: PatchableProto): (() => void) | null {
+  if (proto[PATCHED]) return null;
+
   // Deliberately captured unbound: the replacement re-applies it with the
   // server instance as `this`, which is what keeps the patch transparent.
   // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -50,7 +42,6 @@ function patchServerProto(
     return state.storage.run(inbound, () => original.apply(this, [event, ...args]));
   };
   proto[PATCHED] = true;
-  log(config, 'instrumented inbound ' + label + ' server');
 
   return () => {
     proto.emit = original;
@@ -58,15 +49,11 @@ function patchServerProto(
   };
 }
 
-export function installHttpServer(config: Config): Array<() => void> {
+export function installHttpServer(): Array<() => void> {
   const undo: Array<() => void> = [];
-  const httpUndo = patchServerProto(http.Server.prototype, 'http', config);
-  if (httpUndo) undo.push(httpUndo);
-
-  // Guard: on runtimes where `https.Server` is an alias of `http.Server`, the
-  // symbol check inside patchServerProto already short-circuits.
-  const httpsUndo = patchServerProto(https.Server.prototype, 'https', config);
-  if (httpsUndo) undo.push(httpsUndo);
-
+  for (const server of [http.Server, https.Server]) {
+    const stop = patchServerProto(server.prototype);
+    if (stop) undo.push(stop);
+  }
   return undo;
 }

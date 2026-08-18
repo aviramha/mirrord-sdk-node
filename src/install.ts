@@ -1,5 +1,4 @@
-import type { Config, PropagateOptions } from './config.js';
-import { log, resolveConfig } from './config.js';
+import type { PropagateOptions } from './config.js';
 import { state } from './context.js';
 import { installFetch } from './instrumentation/fetch.js';
 import { installHttpClient } from './instrumentation/http-client.js';
@@ -31,17 +30,19 @@ function makeHandle(): PropagateHandle {
  *     mirrord.auto_propagate();
  *
  * From then on, an inbound `baggage` header becomes an ambient async context,
- * and every outbound HTTP call, `fetch`, and SQS message sent while handling
- * that request carries it onward.
+ * and every outbound HTTP call and `fetch` sent while handling that request
+ * carries it onward.
  *
  * Calling it more than once is a no-op rather than a second layer of hooks.
  * Every hook is wrapped so that a failure inside instrumentation can never
  * break the call it is decorating.
  */
 export function auto_propagate(options: PropagateOptions = {}): PropagateHandle {
+  // No option is read yet. The parameter is part of the signature so that
+  // adding one later does not change how callers already invoke this.
+  void options;
   if (state.installed) return makeHandle();
 
-  const config: Config = resolveConfig(options);
   const undo: Array<() => void> = [];
   const instrumented: string[] = [];
 
@@ -52,21 +53,18 @@ export function auto_propagate(options: PropagateOptions = {}): PropagateHandle 
         undo.push(...hooks);
         instrumented.push(name);
       }
-    } catch (error) {
+    } catch {
       // One unavailable surface must never stop the others from installing.
-      log(config, 'skipped ' + name + ': ' + String(error));
     }
   };
 
-  if (config.http) step('http-server', () => installHttpServer(config));
-  if (config.httpClient) {
-    step('http-client', () => installHttpClient(config));
-    step('fetch', () => installFetch(config));
-  }
+  step('http-server', installHttpServer);
+  step('http-client', installHttpClient);
+  step('fetch', installFetch);
+
   state.installed = true;
   state.instrumented = instrumented;
   state.uninstall = undo;
-  log(config, 'propagating via ' + (instrumented.join(', ') || 'nothing'));
   return makeHandle();
 }
 
