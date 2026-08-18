@@ -12,7 +12,7 @@ export default tseslint.config(
     extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       parserOptions: { project: './tsconfig.json', tsconfigRootDir: import.meta.dirname },
-      globals: { ...globals.node, ...globals.browser },
+      globals: { ...globals.node },
     },
     rules: {
       // Instrumentation reaches into loosely typed third-party shapes, so the

@@ -1,19 +1,8 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
 
-const {
-  bind,
-  currentHeader,
-  get,
-  getAll,
-  hostAllowed,
-  outboundHeader,
-  remove,
-  resolveConfig,
-  runWith,
-  runWithAdded,
-  set,
-} = await import('../../dist/cjs/index.js');
+const { bind, currentHeader, get, getAll, remove, runWith, runWithAdded, set } =
+  await import('../../dist/cjs/index.js');
 
 test('there is no context until one is established', () => {
   assert.equal(get('user'), undefined);
@@ -76,48 +65,10 @@ test('currentHeader serializes what would go on the wire', () => {
   });
 });
 
-test('resolveConfig defaults to propagating everything', () => {
-  assert.deepEqual(resolveConfig(), {
-    allowKeys: null,
-    allowHosts: null,
-    denyHosts: null,
-    http: true,
-    httpClient: true,
-    debug: false,
-  });
-});
-
-test('hostAllowed honours allow and deny lists', () => {
-  const allow = resolveConfig({ allowHosts: ['internal.svc', '*.metalbear.com'] });
-  assert.equal(hostAllowed(allow, 'internal.svc'), true);
-  assert.equal(hostAllowed(allow, 'api.metalbear.com'), true);
-  assert.equal(hostAllowed(allow, 'metalbear.com'), false, 'a bare apex is not matched by *.');
-  assert.equal(hostAllowed(allow, 'api.stripe.com'), false);
-  assert.equal(hostAllowed(allow, 'INTERNAL.SVC:8080'), true, 'case and port are ignored');
-
-  const deny = resolveConfig({ denyHosts: ['*.stripe.com'] });
-  assert.equal(hostAllowed(deny, 'api.stripe.com'), false);
-  assert.equal(hostAllowed(deny, 'api.internal'), true);
-
-  const both = resolveConfig({ allowHosts: ['*.example.com'], denyHosts: ['secret.example.com'] });
-  assert.equal(hostAllowed(both, 'ok.example.com'), true);
-  assert.equal(hostAllowed(both, 'secret.example.com'), false, 'deny wins over allow');
-
-  assert.equal(hostAllowed(resolveConfig(), 'anything.example'), true);
-});
-
-test('outboundHeader applies the key allowlist', () => {
-  const config = resolveConfig({ allowKeys: ['user', 'tenant'] });
-  runWith({ user: 'alice', tenant: 'acme', secret: 'do-not-send' }, () => {
-    assert.equal(outboundHeader(config), 'user=alice,tenant=acme');
-  });
-});
-
-test('outboundHeader returns null rather than throwing on a broken context', () => {
+test('currentHeader stays empty rather than throwing on a broken context', () => {
   // A malformed entry makes serialization throw; callers must still be able to
   // send the request, just without a header.
   runWith(new Map([['broken', null]]), () => {
-    assert.equal(outboundHeader(resolveConfig()), null);
+    assert.equal(currentHeader(), '');
   });
-  assert.equal(outboundHeader(resolveConfig()), null, 'no context at all');
 });

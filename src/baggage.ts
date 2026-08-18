@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 /**
  * W3C Baggage codec.
  *
@@ -28,21 +30,9 @@ export type Baggage = Map<string, BaggageEntry>;
 // RFC 7230 token characters, which is what a baggage key must be.
 const TOKEN_RE = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
-function byteLength(s: string): number {
-  // Avoids a Buffer dependency so the codec runs unchanged in browsers,
-  // Deno and Bun. Counts UTF-8 bytes.
-  let bytes = 0;
-  for (let i = 0; i < s.length; i++) {
-    const code = s.charCodeAt(i);
-    if (code < 0x80) bytes += 1;
-    else if (code < 0x800) bytes += 2;
-    else if (code >= 0xd800 && code <= 0xdbff) {
-      bytes += 4;
-      i++; // surrogate pair consumed
-    } else bytes += 3;
-  }
-  return bytes;
-}
+// The spec's limits are in bytes, and a baggage value may hold any UTF-8, so
+// character length is not a substitute.
+const byteLength = (s: string): number => Buffer.byteLength(s, 'utf8');
 
 /**
  * Decodes a `baggage` header value.
@@ -107,12 +97,16 @@ export function serialize(baggage: Baggage | undefined | null): string {
   for (const entry of baggage) {
     if (parts.length >= MAX_MEMBERS) break;
     const key = entry[0];
+    // A caller can hand over a hand-built Map, so an entry is not guaranteed to
+    // hold the shape the type claims. A bad one is skipped, exactly as a
+    // malformed list-member is on the way in.
+    if (entry[1] == null || typeof key !== 'string' || !TOKEN_RE.test(key)) continue;
     const { value, properties } = entry[1];
-    if (!TOKEN_RE.test(key)) continue;
+    if (value == null) continue;
 
     // encodeURIComponent only ever emits characters inside the baggage-octet
     // set, so its output is always a valid value.
-    let member = key + '=' + encodeURIComponent(value);
+    let member = key + '=' + encodeURIComponent(String(value));
     if (properties && properties.length > 0) member += ';' + properties.join(';');
 
     const size = byteLength(member);

@@ -71,6 +71,23 @@ test('rejects an inbound header over the total limit', () => {
   assert.equal(parse('k=' + 'x'.repeat(MAX_TOTAL_BYTES)).size, 0);
 });
 
+test('skips malformed entries instead of throwing', () => {
+  // Nothing stops a caller from building the Map by hand, and a throw here
+  // would surface as a failed request in unrelated application code.
+  const hostile = new Map([
+    ['ok', { value: 'yes' }],
+    ['broken', null],
+    ['missing', {}],
+    ['bad key', { value: 'x' }],
+  ]);
+  assert.equal(serialize(hostile), 'ok=yes');
+  assert.equal(serialize(new Map([['broken', null]])), '');
+});
+
+test('coerces a non-string value', () => {
+  assert.equal(serialize(new Map([['n', { value: 42 }]])), 'n=42');
+});
+
 test('handles empty and nullish input', () => {
   assert.equal(parse(undefined).size, 0);
   assert.equal(parse(null).size, 0);
