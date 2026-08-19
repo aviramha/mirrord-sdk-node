@@ -1,16 +1,16 @@
 {
-  "name": "mirrord-sdk",
+  "name": "@metalbear/mirrord-sdk",
   "version": "0.1.0",
   "description": "Automatic W3C Baggage propagation for Node, Bun and Deno.",
   "license": "MIT",
   "author": "MetalBear Tech LTD",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aviramha/mirrord-sdk-node.git"
+    "url": "git+https://github.com/metalbear-co/mirrord-sdk-node.git"
   },
-  "homepage": "https://github.com/aviramha/mirrord-sdk-node#readme",
+  "homepage": "https://github.com/metalbear-co/mirrord-sdk-node#readme",
   "bugs": {
-    "url": "https://github.com/aviramha/mirrord-sdk-node/issues"
+    "url": "https://github.com/metalbear-co/mirrord-sdk-node/issues"
   },
   "keywords": [
     "baggage",

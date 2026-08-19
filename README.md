@@ -1,4 +1,4 @@
-# mirrord-sdk
+# @metalbear/mirrord-sdk
 
 Automatic [W3C Baggage](https://www.w3.org/TR/baggage/) propagation for Node, Bun and Deno.
 
@@ -28,7 +28,7 @@ Nothing here is mirrord-specific. It is plain W3C Baggage, so it works for whate
 to carry across a request chain.
 
 ```bash
-npm install mirrord-sdk
+npm install @metalbear/mirrord-sdk
 ```
 
 ## Use
@@ -37,12 +37,15 @@ One call, as early as possible in your entry point:
 
 ```ts
 // main.ts / index.js
-import mirrord from 'mirrord-sdk';
+import mirrord from '@metalbear/mirrord-sdk';
 
 mirrord.auto_propagate();
 ```
 
-That is the whole setup.
+That covers everything you receive and send over HTTP, and everything you send to SQS.
+
+**If you consume from SQS, there is one more step** — see [SQS consumers](#sqs-consumers). Without
+it the context stops at the queue.
 
 ## What it hooks
 
@@ -64,7 +67,7 @@ only you can say where one message begins.
 Wrap your handler:
 
 ```ts
-import { get, wrapMessageHandler } from 'mirrord-sdk';
+import { get, wrapMessageHandler } from '@metalbear/mirrord-sdk';
 
 const handler = wrapMessageHandler(async (message) => {
   get('user'); // whatever the producer sent
@@ -75,7 +78,7 @@ const handler = wrapMessageHandler(async (message) => {
 Or start the context inline, if the handler is not yours to wrap:
 
 ```ts
-import { runWithMessage } from 'mirrord-sdk';
+import { runWithMessage } from '@metalbear/mirrord-sdk';
 
 await runWithMessage(message, async () => {
   await downstream();
@@ -92,7 +95,7 @@ Rarely needed — forwarding what arrived is the common case — but the context
 writable anywhere downstream of an inbound request:
 
 ```ts
-import { get, getAll, set } from 'mirrord-sdk';
+import { get, getAll, set } from '@metalbear/mirrord-sdk';
 
 get('user'); // 'alice@metalbear.com' — from the inbound header
 set('tenant', 'acme'); // rides along on every outbound call from here on
@@ -148,6 +151,14 @@ npm run lint
 npm run format
 npm run verify:package   # pack and install into throwaway consumers
 ```
+
+Every user-facing change needs a changelog fragment in `changelog.d/`, named
+`+short-description.<type>.md`, where the type is one of `added`, `changed`, `fixed`,
+`deprecated`, `removed`, `security` or `internal`.
+
+A scheduled workflow opens a release PR whenever a non-`internal` fragment is waiting; merging that
+PR publishes to npm and cuts the GitHub release. Publishing authenticates through npm trusted
+publishing (OIDC), so there is no npm token in this repository.
 
 ## License
 
