@@ -102,3 +102,24 @@ jobs:
       # consumers. Catches a broken exports map, a missing file, or declarations
       # resolving to the wrong module flavour.
       - run: npm run verify:package
+
+  # A single context for branch protection to require, so the ruleset does not
+  # have to name every job and does not need editing when the matrix changes.
+  # `always()` means this runs even when something upstream failed, which is what
+  # lets it report the failure rather than being skipped along with it.
+  ci-success:
+    name: ci
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: always()
+    needs: [checks, test, e2e, runtimes, package]
+    steps:
+      - name: Check required jobs passed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          failing=$(echo "$NEEDS_JSON" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"')
+          if [ -n "$failing" ]; then
+            echo "$failing"
+            exit 1
+          fi
