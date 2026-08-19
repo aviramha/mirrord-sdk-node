@@ -1,0 +1,168 @@
+name: Publish
+
+permissions: {}
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
+
+jobs:
+  validate_release_request:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_release: ${{ steps.validate.outputs.should_release }}
+      version: ${{ steps.validate.outputs.version }}
+    steps:
+      - name: Checkout
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate and output version
+        id: validate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${{ github.event.pull_request.merged }}" != "true" ]]; then
+            echo "PR was not merged, skipping release"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "${{ github.head_ref }}" != releases/* ]]; then
+            echo "Branch '${{ github.head_ref }}' does not start with releases/, skipping"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          version=$(node -p "require('./package.json').version")
+
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version '$version' does not match semver, aborting" >&2
+            exit 1
+          fi
+
+          if gh release view "$version" &>/dev/null; then
+            echo "Release $version already exists, skipping"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  publish-npm:
+    needs: [validate_release_request]
+    if: needs.validate_release_request.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # npm trusted publishing: the registry exchanges this OIDC token for
+      # publish rights, so there is no npm token anywhere in this repository.
+      id-token: write
+    env:
+      VERSION: ${{ needs.validate_release_request.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # Trusted publishing needs Node >= 22.14.0 and npm >= 11.5.1.
+          node-version: '24'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Ensure an npm that can use trusted publishing
+        run: |
+          npm install -g npm@^11
+          npm --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check
+        run: |
+          npm run lint
+          npm run format:check
+          npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Installs the packed tarball into throwaway CJS, ESM and TypeScript
+      # consumers. The tests import from dist/ directly, so this is the only
+      # thing that catches a broken exports map before it reaches the registry.
+      - name: Verify the package as a consumer sees it
+        run: npm run verify:package
+
+      - name: Guard against republishing a version
+        run: |
+          if npm view "@metalbear/mirrord-sdk@$VERSION" version >/dev/null 2>&1; then
+            echo "::error::@metalbear/mirrord-sdk@$VERSION is already on the registry"
+            exit 1
+          fi
+
+      # No token: authentication is the OIDC exchange enabled by id-token above,
+      # against the trusted publisher configured for this package on npmjs.com.
+      # Trusted publishing also attaches provenance on its own, so there is no
+      # --provenance flag to pass.
+      - name: Publish to npm
+        run: npm publish --access public
+
+  create-release:
+    needs: [validate_release_request, publish-npm]
+    if: needs.validate_release_request.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.validate_release_request.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          awk "/^## \[${VERSION}\]/{found=1} found && /^## \[/ && !/^## \[${VERSION}\]/{exit} found{print}" \
+            CHANGELOG.md > /tmp/release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --notes-file /tmp/release-notes.md
+
+  linear_release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: [validate_release_request, create-release]
+    if: needs.validate_release_request.outputs.should_release == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # Required for commit history
+
+      - uses: metalbear-co/linear-release-action@76a250988b9470b152ec13d24d661140084042c1
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          version: ${{ needs.validate_release_request.outputs.version }}
+          name: ${{ needs.validate_release_request.outputs.version }}

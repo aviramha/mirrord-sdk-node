@@ -53,7 +53,7 @@ function consumer(name, files, pkg, check) {
 }
 
 const smoke = (entry) => `
-const bag = ${entry === 'index.mjs' ? "(await import('mirrord-sdk')).default" : "require('mirrord-sdk').default"};
+const bag = ${entry === 'index.mjs' ? "(await import('@metalbear/mirrord-sdk')).default" : "require('@metalbear/mirrord-sdk').default"};
 const http = ${entry === 'index.mjs' ? "(await import('node:http')).default" : "require('node:http')"};
 bag.auto_propagate();
 if (!bag.is_propagating()) throw new Error('auto_propagate did not take effect');
@@ -84,7 +84,7 @@ import mirrord, {
   auto_propagate,
   parse,
   extractFromMessage,
-} from 'mirrord-sdk';
+} from '@metalbear/mirrord-sdk';
 auto_propagate().stop();
 mirrord.auto_propagate();
 const value: string | undefined = get('user');
