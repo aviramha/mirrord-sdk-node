@@ -13,6 +13,12 @@ const STATE_KEY = Symbol.for('mirrord-sdk.state.v1');
 
 export interface SharedState {
   storage: AsyncLocalStorage<Baggage>;
+  /** Whether {@link auto_propagate} has applied its hooks. */
+  installed: boolean;
+  /** Names of the surfaces that were hooked. */
+  instrumented: string[];
+  /** One undo callback per hook, unwound by `stop_propagate`. */
+  uninstall: Array<() => void>;
 }
 
 interface GlobalWithState {
@@ -25,6 +31,9 @@ export const state: SharedState =
   globalRef[STATE_KEY] ||
   (globalRef[STATE_KEY] = {
     storage: new AsyncLocalStorage<Baggage>(),
+    installed: false,
+    instrumented: [],
+    uninstall: [],
   });
 
 /** The baggage attached to the current async context, if any. */
