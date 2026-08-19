@@ -42,7 +42,10 @@ import mirrord from 'mirrord-sdk';
 mirrord.auto_propagate();
 ```
 
-That is the whole setup.
+That covers everything you receive and send over HTTP, and everything you send to SQS.
+
+**If you consume from SQS, there is one more step** — see [SQS consumers](#sqs-consumers). Without
+it the context stops at the queue.
 
 ## What it hooks
 
