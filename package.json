@@ -61,7 +61,8 @@
     "test:e2e": "node scripts/run-tests.mjs test/e2e",
     "test:runtimes": "node scripts/runtime-smoke.mjs",
     "test:bun": "bun scripts/runtime-smoke.mjs",
-    "test:deno": "deno run --allow-net --allow-env --allow-read scripts/runtime-smoke.mjs"
+    "test:deno": "deno run --allow-net --allow-env --allow-read scripts/runtime-smoke.mjs",
+    "verify:package": "npm run build && node scripts/verify-package.mjs"
   },
   "dependencies": {},
   "devDependencies": {
